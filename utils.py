@@ -3,12 +3,89 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 from matplotlib import pyplot as plt
 
-def check_importance(X,y):
+
+def describe_data(train_df):
+    print("Size : ",train_df.shape)
+    categorical_cols = [cname for cname in train_df.columns if train_df[cname].dtype == "object"]
+    numerical_cols = [cname for cname in train_df.columns if train_df[cname].dtype in ['int64', 'float64']]
+    
+    print("There are {} field".format(len(train_df.columns)))
+    print("{} categorical_cols:".format(len(categorical_cols)))
+    unique = [train_df[t].unique() for t in categorical_cols]
+    print([i for i in zip(categorical_cols,
+    # unique,
+    [len(t) 
+    for t in unique])
+    ])
+    
+    print("{} numerical_cols: ".format(len(numerical_cols)))
+    print(numerical_cols)
+
+    missing_val_count_by_column_categorical = (train_df[categorical_cols].isnull().sum())
+    print("Number of missing values in categorical column:")
+    print(missing_val_count_by_column_categorical[missing_val_count_by_column_categorical > 0])
+
+    missing_val_count_by_column_numeric = (train_df[numerical_cols].isnull().sum())
+    print("Number of missing values in numerical columns:")
+    print(missing_val_count_by_column_numeric[missing_val_count_by_column_numeric > 0])
+
+    return categorical_cols, numerical_cols
+
+def check_importance(X,y,model):
     import eli5
     from eli5.sklearn import PermutationImportance
-    perm = PermutationImportance(rfc_model, random_state=1).fit(X, y)
+    perm = PermutationImportance(model, random_state=1).fit(X, y)
     eli5.show_weights(perm, feature_names = X.columns.tolist(), top=150)
 
+
+def assessment(f_data, f_y_feature, f_x_feature, f_index=-1):
+    import seaborn as sns
+    """
+    Develops and displays a histogram and a scatter plot for a dependent / independent variable pair from
+    a dataframe and, optionally, highlights a specific observation on the plot in a different color (red).
+    
+    Also optionally, if an independent feature is not informed, the scatterplot is not displayed.
+    
+    Keyword arguments:
+    
+    f_data      Tensor containing the dependent / independent variable pair.
+                Pandas dataframe
+    f_y_feature Dependent variable designation.
+                String
+    f_x_feature Independent variable designation.
+                String
+    f_index     If greater or equal to zero, the observation denoted by f_index will be plotted in red.
+                Integer
+    """
+    for f_row in f_data:
+        if f_index >= 0:
+            f_color = np.where(f_data[f_row].index == f_index,'r','g')
+            f_hue = None
+        else:
+            f_color = 'b'
+            f_hue = None
+    
+    f_fig, f_a = plt.subplots(1, 2, figsize=(16,4))
+    
+    f_chart1 = sns.distplot(f_data[f_x_feature], ax=f_a[0], kde=False, color='r')
+    f_chart1.set_xlabel(f_x_feature,fontsize=10)
+    
+    if f_index >= 0:
+        f_chart2 = plt.scatter(f_data[f_x_feature], f_data[f_y_feature], c=f_color, edgecolors='w')
+        f_chart2 = plt.xlabel(f_x_feature, fontsize=10)
+        f_chart2 = plt.ylabel(f_y_feature, fontsize=10)
+    else:
+        f_chart2 = sns.scatterplot(x=f_x_feature, y=f_y_feature, data=f_data, hue=f_hue, legend=False)
+        f_chart2.set_xlabel(f_x_feature,fontsize=10)
+        f_chart2.set_ylabel(f_y_feature,fontsize=10)
+
+    plt.show()
+
+
+def save_file(file ,id , y_pred, sample):
+    cols = pd.read_csv(sample).columns
+    res_df = pd.DataFrame({cols[0]: id, cols[1]: y_pred})
+    res_df.to_csv(file, index=False)
 
 def check_missing_data(df):
     flag=df.isna().sum().any()
@@ -25,11 +102,6 @@ def check_missing_data(df):
         return(np.transpose(output))
     else:
         return(False)    
-
-
-def save_file(file ,id , y_pred):
-    res_df = pd.DataFrame({'id': id, 'label': y_pred})
-    res_df.to_csv(file, index=False)
 
 
 def explain(X):

@@ -1,3 +1,12 @@
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+import numpy as np
+from matplotlib import pyplot as plt
+from model import Logistic, RandomForest, lightgbm_lib
+from utils import save_file
+
+
 def count_encode(X, categorical_features, normalize=False):
     # X_ = count_encode(train_X,['FIELD_8', 'FIELD_10'])
     print('Count encoding: {}'.format(categorical_features))
@@ -69,7 +78,7 @@ cat_features = ['province', 'district', 'maCv',
                 'FIELD_10', 'FIELD_13', 'FIELD_17', 
                 'FIELD_24', 'FIELD_35', 'FIELD_39', 
                 'FIELD_41', 'FIELD_42', 'FIELD_43', 
-                'FIELD_44']
+                'FIELD_44','FIELD_12']
 
 bool_features = ['FIELD_2', 'FIELD_18', 'FIELD_19', 
                 'FIELD_20', 'FIELD_23', 'FIELD_25', 
@@ -101,12 +110,35 @@ for col in ordinal.columns:
     th = set(ordinal[col])
     ordinal[col] = pd.Series([list(th).index(i) for i in ordinal[col]])
 
+
+
 numerical = df[num_features]
+numerical  = numerical.replace(to_replace = "None", value =-2) 
+numerical  = numerical.replace(to_replace = ["02 05 08 11","HT", "GD","08 02","05 08 11 02"], value =-1)
+numerical.astype(float)
+
 for col in numerical.columns:
     numerical[col + "_missing"] = numerical[col].isna().astype(int)
 numerical["age_mean"] = (numerical["age_source1"] + numerical["age_source2"])/2
+for col in numerical:
+    print(col,numerical[col].dtype)
 
 
-# from sklearn.impute import SimpleImputer
-# imp = SimpleImputer(strategy="mean")
-# imp.fit_transform(df)
+from sklearn.preprocessing import MinMaxScaler
+for col in numerical.columns:
+    numerical[col] = pd.DataFrame(scaler.fit_transform(pd.DataFrame(numerical[col])),columns=[col])
+
+
+
+from sklearn.impute import SimpleImputer
+imp = SimpleImputer(strategy="mean")
+num_col = numerical.columns 
+numerical = pd.DataFrame(imp.fit_transform(numerical),columns = numerical.columns)
+cat_n.index = numerical.index
+cat_l.index = numerical.index
+df_processed = pd.concat([numerical, cat_n,cat_l],axis = 1)
+
+# from sklearn.preprocessing import Imputer
+# imputer = Imputer(missing_values="NaN", strategy="mean", axis = 0)
+# imputer = imputer.fit(numerical)
+# tmp = imputer.transform(numerical)

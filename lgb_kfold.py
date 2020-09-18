@@ -100,11 +100,11 @@ if __name__ == '__main__':
                             evals_result=evals_result)
             p_valid += lgb_clf.predict(X_valid)
             yp += lgb_clf.predict(test_X[features])
-        fold_importance_df = pd.DataFrame()
-        fold_importance_df["feature"] = features
-        fold_importance_df["importance"] = lgb_clf.feature_importance()
-        fold_importance_df["fold"] = fold + 1
-        feature_importance_df = pd.concat([feature_importance_df, fold_importance_df], axis=0)
+        # fold_importance_df = pd.DataFrame()
+        # fold_importance_df["feature"] = features
+        # fold_importance_df["importance"] = lgb_clf.feature_importance()
+        # fold_importance_df["fold"] = fold + 1
+        # feature_importance_df = pd.concat([feature_importance_df, fold_importance_df], axis=0)
         oof['predict'][val_idx] = p_valid/N
         val_score = roc_auc_score(y_valid, p_valid)
         val_aucs.append(val_score)
@@ -130,6 +130,7 @@ if __name__ == '__main__':
     plt.savefig('lgbm_importances.png')
 
     predictions['label'] = np.mean(predictions[[col for col in predictions.columns if col not in ['id', 'label']]].values, axis=1)
+    save_file("submission_lgb.csv",test_df["id"],predictions['label'])
     predictions.to_csv('lgb_all_predictions.csv', index=None)
     sub_df = pd.DataFrame({"ID_code":df_test["ID_code"].values})
     sub_df["target"] = predictions['target']
