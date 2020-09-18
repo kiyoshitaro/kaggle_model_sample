@@ -1,0 +1,8 @@
+opencv-python=='3.4.2'
+sklearn=='0.19.1'
+scikit-learn 
+scipy
+matplotlib==3.1.1
+pandas==0.25.1
+xgboost
+eli5==0.10.1
