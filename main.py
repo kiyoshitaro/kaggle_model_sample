@@ -4,6 +4,7 @@ import numpy as np
 
 from model import Logistic, RandomForestReg, lightgbm_lib
 from utils import save_file,describe_data, assessment, correlation_map,srt_box
+from model import model_check
 from matplotlib import pyplot as plt
 import seaborn as sns 
 
@@ -43,10 +44,11 @@ for index in range(len(categorical_cols)):
     sns.countplot(x=all_data[categorical_cols].iloc[:,index], data=all_data[categorical_cols].dropna())
     plt.xticks(rotation=90)
 fig.tight_layout(pad=1.0)
-
-    
 # BOX_PLOT
 srt_box('SalePrice', all_data)
+
+
+
 
 # categorical ordinal features
 map1 = {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0}
@@ -87,9 +89,12 @@ ordinal.append("TotalExteriorQual")
 
 nominal = [i for i in categorical_cols if i not in ordinal]
 
-# Categorical nominal
-nominal_data = df[nominal]
-df.drop(columns=nominal, inplace=True)
+
+
+
+# # Categorical nominal
+# nominal_data = df[nominal]
+# df.drop(columns=nominal, inplace=True)
 
 
 # df['Exterior'] =  df.apply(lambda x: x['Exterior1st'] if (pd.isnull(x['Exterior2nd'])) else str(x['Exterior1st'])+'-'+str(x['Exterior2nd']), axis=1)
@@ -98,7 +103,7 @@ df.drop(columns=nominal, inplace=True)
 # # Merge 'Condition1', 'Condition2' to 'Condition'
 # df['Condition'] =  df.apply(lambda x: x['Condition1'] if (pd.isnull(x['Condition2'])) else str(x['Condition1'])+'-'+str(x['Condition2']), axis=1)
 # df.drop(['Condition1', 'Condition2'],axis=1,inplace=True)
-df = pd.get_dummies(df).reset_index(drop=True)
+# df = pd.get_dummies(df).reset_index(drop=True)
 
 
 
@@ -122,26 +127,20 @@ df = pd.concat([not_nominal_imputed, df[nominal]],axis = 1)
 
 
 
-df = pd.get_dummies(df).reset_index(drop=True)
 
 # VISUALIZE 
 
 
 # Visualize relation each feature vs y
-from scipy.stats import skew
-skew_values = df[numerical_cols].apply(lambda x: skew(x))
-high_skew = skew_values[skew_values > 0.5]
-skew_indices = high_skew.index
-for index in skew_indices:
+for index in numerical_cols:
     assessment(pd.concat([df.iloc[:len(y), :], y], axis=1), 'SalePrice', index, -1) #-1 for all data 
 
-
+    
 
 # FEATURE SELECTION
 
 # Outliers
 # box plots for numerical attributes
-# out_col = ['LotFrontage','LotArea','BsmtFinSF1','TotalBsmtSF','GrLivArea']
 train = pd.concat( [df[:][:len(y)],y], axis = 1)
 test = df[:][len(y):]
 
@@ -168,9 +167,6 @@ df = pd.concat([train, test]).reset_index(drop=True)
 # x[lcf.negative_outlier_factor_ > self.threshold, :]
 
 
-
-
-
 # Visualize correlation in pair 
 updated_train_set = pd.concat([df[numerical_cols].iloc[:len(y), :], y], axis=1)
 correlation_map(updated_train_set, 'SalePrice', 15)
@@ -182,7 +178,29 @@ correlation_map(updated_train_set, 'SalePrice', 15)
 
 
 
+# from sklearn.decomposition import PCA, NMF
+# pca = PCA().fit(df[numerical_cols])
+# plt.plot(np.cumsum(pca.explained_variance_ratio_))
+# plt.xlabel('number of components')
+# plt.ylabel('cumulative explained variance')
+
+# n_components = 20
+# pca = PCA(n_components=n_components)
+# df_pca = pca.fit_transform(df[numerical_cols])
+
+# weights = np.round(pca.components_, 3) 
+# ev = np.round(pca.explained_variance_ratio_, 3)
+# print('explained variance ratio',ev)
+# pca_wt = pd.DataFrame(weights)#, columns=all_data.columns)
+
+# corrmat = pd.DataFrame(df_pca).corr(method='kendall')
+# plt.subplots(figsize=(12,9))
+# plt.title("Kendall's Correlation Matrix PCA applied", fontsize=16)
+# sns.heatmap(corrmat, vmax=0.9, square=True)
+
 # FEATURE ENGINEER 
+
+
 
 #create some feature using features are highly co-related with SalePrice
 df['GrLivArea_2']=df['GrLivArea']**2
@@ -215,6 +233,15 @@ df['TotalSF'] = df['TotalBsmtSF'] + df['1stFlrSF'] + df['2ndFlrSF']
 
 df['YearsSinceBuilt'] = df['YrSold'].astype(int) - df['YearBuilt']
 df['YearsSinceRemod'] = df['YrSold'].astype(int) - df['YearRemodAdd']
+
+import datetime
+Yr = df['YrSold'].min()
+Mo = df['MoSold'].min()
+t = datetime.datetime(int(Yr), int(Mo), 1, 0, 0)
+
+def calculateYrMo (row):   
+    return int((datetime.datetime(int(row.YrSold),int(row.MoSold),1) - t).total_seconds())
+df['YrMoSold'] = df.apply(lambda row: calculateYrMo(row), axis=1)
 
 df['TotalWalledArea'] = df['TotalBsmtSF'] + df['GrLivArea']
 df['TotalPorchArea'] = df['OpenPorchSF'] + df['3SsnPorch'] + df['EnclosedPorch'] + df['ScreenPorch'] + df['WoodDeckSF']
@@ -266,14 +293,65 @@ df['QualGrg'] = df['TotalGrgQual'] * df['GarageArea']
 df['QlLivArea'] = (df['GrLivArea'] -
                          df['LowQualFinSF']) * (df['TotalQual'])
 # df['QualSFNg'] = df['QualGr'] * df['Neighborhood']
-    
+numerical_cols = [i for i in df.columns if df[i].dtype != "object" and i not in ordinal]
+
+
+
+# normalize skew feature
+from scipy.stats import skew
+skew_values = df[numerical_cols].apply(lambda x: skew(x))
+high_skew = skew_values[skew_values > 0.5]
+skew_indices = high_skew.index
+lam_f = 0.15
+for index in skew_indices:
+    df[index] = boxcox1p(df[index], lam_f)
+
+
+
+
+
+df = pd.get_dummies(df).reset_index(drop=True)
 pd.concat([df,y],axis = 1).to_csv("houseprice/clean_data.csv",index=False)
+
+
+
+
+
+# TARGET 
+from scipy.stats import norm, skew, kurtosis, boxcox #for some statistics
+from scipy.special import boxcox1p, inv_boxcox, inv_boxcox1p
+
+sns.distplot(y , fit=norm)
+(mu, sigma) = norm.fit(y)
+plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigma)],
+            loc='best')
+plt.ylabel('Frequency')
+plt.title('SalePrice distribution')
+# The target variable is right skewed. As (linear) models love 
+# normally distributed data , we need to transform this variable 
+# and make it more normally distributed
+
+# option 1 - original
+#y = np.log1p(y)
+
+# Option 2: use box-cox transform - this performs better than the log(1+x)
+# try different alpha values  between 0 and 1
+lam_l = 0.35 # optimized value
+y = boxcox1p(y, lam_l) 
+
+# Option 3: boxcox letting the algorithm select lmbda based on least-likelihood calculation
+#y, lam_l = boxcox1p(x=y, lmbda=None)
+
+# option 4 - use log, compare to log1p => score is same
+#y = np.log(y)
+
+
+
+
 
 
 train_df = df[:len(y)]
 test_df = df[len(y):]
-# train_df = df[df['Id'] <= len(y)]
-# test_df = df[df['Id'] > len(y)]
 train_X, val_X, train_y, val_y = train_test_split(train_df, y, train_size=0.99, test_size=0.01,
                                                                 random_state=0)
 
@@ -281,7 +359,7 @@ train_X, val_X, train_y, val_y = train_test_split(train_df, y, train_size=0.99, 
 # fitted the RobustScaler on both Train and Test set 
 # exposed ourselves to the problem of Data Leakage
 # ==> Fit the scaler just on training data, and then transforming it on both training and test data
-from sklearn.preprocessing import StandardScaler,RobustScaler
+from sklearn.preprocessing import StandardScaler,RobustScaler,MinMaxScaler
 sc = StandardScaler()
 train_X = sc.fit_transform(train_X)
 test_X = sc.transform(test_df)
@@ -291,129 +369,6 @@ val_X = sc.transform(val_X)
 # train_X = rs.fit_transform(train_X)
 # test_X = rs.transform(test_df)
 # val_X = rs.transform(val_X)
-
-
-
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-rfc_model = RandomForestRegressor(n_estimators=700,max_depth=4,random_state=0,oob_score = True).fit(train_X, train_y)
-rfc_model.score(val_X,val_y)
-rfc_model.oob_score_
-
-import sklearn
-sklearn.metrics.mean_squared_error(val_y,rfc_model.predict(val_X))**1/2
-
-
-from sklearn.linear_model import LinearRegression
-clf = LinearRegression()
-clf.fit(train_X, train_y)
-y_pred = clf.predict(test_X)
-
-
-from sklearn.linear_model import ElasticNetCV, LassoCV, RidgeCV
-from sklearn.model_selection import KFold, cross_val_score
-kfolds = KFold(n_splits=10, shuffle=True, random_state=42)
-
-
-
-elasticnet_alphas = [5e-5, 1e-4, 5e-4, 1e-3]
-elasticnet_l1ratios = [0.8, 0.85, 0.9, 0.95, 1]
-ela = ElasticNetCV(max_iter=1e7, alphas=elasticnet_alphas,
-                                        cv=kfolds, l1_ratio=elasticnet_l1ratios)
-ela.fit(train_X, train_y)
-y_pred = ela.predict(test_X)
-save_file("houseprice/submission_Elastic.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
-
-
-
-lasso_alphas = [5e-5, 1e-4, 5e-4, 1e-3]
-las = LassoCV(max_iter=1e7, alphas=lasso_alphas,
-                              random_state=42, cv=kfolds)
-las.fit(train_X, train_y)
-y_pred = las.predict(test_X)
-save_file("houseprice/submission_LassoCV.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
-
-
-
-ridge_alphas = [13.5, 14, 14.5, 15, 15.5]
-rid = RidgeCV(alphas=ridge_alphas, cv=kfolds)
-rid.fit(train_X, train_y)
-y_pred = rid.predict(test_X)
-save_file("houseprice/submission_RidgeCV.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
-
-
-rng = np.random.RandomState(1)
-from sklearn.ensemble import AdaBoostRegressor
-from sklearn.tree import DecisionTreeRegressor
-regr_2 = AdaBoostRegressor(DecisionTreeRegressor(max_depth=4),
-                          n_estimators=300, random_state=rng)
-regr_2.fit(train_X, train_y)
-y_pred = regr_2.predict(test_X)
-save_file("houseprice/submission_AdaBoost.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
-
-
-
-
-
-from sklearn.ensemble import GradientBoostingRegressor
-alpha = 0.95
-clf = GradientBoostingRegressor(loss='quantile', alpha=alpha,
-                                n_estimators=250, max_depth=4,
-                                learning_rate=.1, min_samples_leaf=9,
-                                min_samples_split=9)
-
-clf.fit(train_X, train_y)
-# Make the prediction on the meshed x-axis
-y_upper = clf.predict(test_X)
-clf.set_params(alpha=1.0 - alpha)
-clf.fit(train_X, train_y)
-# Make the prediction on the meshed x-axis
-y_lower = clf.predict(test_X)
-clf.set_params(loss='ls')
-clf.fit(train_X, train_y)
-# Make the prediction on the meshed x-axis
-y_pred = clf.predict(test_X)
-save_file("houseprice/submission_GradientBoosting.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
-
-
-
-
-
-
-
-from xgboost.sklearn import XGBRegressor
-from sklearn.model_selection import GridSearchCV
-
-xgb1 = XGBRegressor()
-parameters = {'nthread':[4], #when use hyperthread, xgboost may become slower
-              'objective':['reg:linear'],
-              'learning_rate': [.03, 0.05, .07], #so called `eta` value
-              'max_depth': [5, 6, 7],
-              'min_child_weight': [4],
-              'silent': [1],
-              'subsample': [0.7],
-              'colsample_bytree': [0.7],
-              'n_estimators': [500]}
-
-xgb_grid = GridSearchCV(xgb1,
-                        parameters,
-                        cv = 2,
-                        n_jobs = 5,
-                        verbose=True)
-
-xgb_grid.fit(train_X,
-         train_y)
-y_pred = xgb_grid.predict(test_X)
-save_file("houseprice/submission_XGBRegressor.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
-
-
-
-
 
 
 
@@ -447,6 +402,11 @@ xgb.fit(train_X,
 
 y_pred = xgb.predict(test_X)
 save_file("houseprice/submission_XGBRegressor_random.csv",idx,y_pred,"houseprice/sample_submission.csv")
+# import pickle
+# with open("models/XGBRegressor.pkl", 'wb') as file:
+#     pickle.dump(xgb, file)
+# with open("models/XGBRegressor.pkl", 'rb') as file:
+#     pickle_model = pickle.load(file)
 
 
 
@@ -499,8 +459,6 @@ save_file("houseprice/submission_lgbm_random.csv",idx,y_pred,"houseprice/sample_
 # innovative algorithm for processing categorical features, 
 # which fight the prediction shift caused by a special kind of target leakage present 
 # in all existing implementations of gradient boosting algorithms
-
-
 from catboost import CatBoostRegressor
 cb = CatBoostRegressor(loss_function='RMSE', logging_level='Silent')
 # param_lst = {
@@ -523,14 +481,9 @@ param_lst = {
     'rsm' : [0.5, 0.7, 0.9],
     
 }
-
-
-
 catboost = RandomizedSearchCV(estimator = cb, param_distributions = param_lst,
                               n_iter = 100, scoring = 'neg_root_mean_squared_error',
                               cv = 5)
-
-
 # CatBoost with tuned hyperparams
 catboost_search = catboost.fit(train_X,
          train_y)
@@ -545,20 +498,159 @@ save_file("houseprice/submission_catboost_random.csv",idx,y_pred,"houseprice/sam
 
 
 
+estimators = []
+from sklearn import svm
+svm_model=svm.SVC().fit(train_X, train_y)
+# y_pred = inv_boxcox1p(svm_model.predict(test_X),lam_l)
+# save_file("houseprice/submission_svm.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(svm_model)
 
+
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+rfc_model = RandomForestRegressor(n_estimators=700,max_depth=4,random_state=0,oob_score = True).fit(train_X, train_y)
+# y_pred = inv_boxcox1p(rfc_model.predict(test_X),lam_l)
+# save_file("houseprice/submission_RandomForestRegressor.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(rfc_model)
+
+
+rng = np.random.RandomState(1)
+from sklearn.ensemble import AdaBoostRegressor 
+from sklearn.tree import DecisionTreeRegressor
+regr_2 = AdaBoostRegressor(DecisionTreeRegressor(max_depth=4),
+                          n_estimators=300, random_state=rng).fit(train_X, train_y)
+# y_pred = inv_boxcox1p(regr_2.predict(test_X),lam_l)
+# save_file("houseprice/submission_AdaBoost.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(regr_2)
+
+
+from sklearn.linear_model import ElasticNetCV, LassoCV, RidgeCV
+from sklearn.model_selection import KFold, cross_val_score
+kfolds = KFold(n_splits=10, shuffle=True, random_state=42)
+
+elasticnet_alphas = [5e-5, 1e-4, 5e-4, 1e-3]
+elasticnet_l1ratios = [0.8, 0.85, 0.9, 0.95, 1]
+ela = ElasticNetCV(max_iter=1e7, alphas=elasticnet_alphas,
+                                        cv=kfolds, l1_ratio=elasticnet_l1ratios).fit(train_X, train_y)
+# y_pred = inv_boxcox1p(ela.predict(test_X),lam_l)
+# save_file("houseprice/submission_Elastic.csv",idx,y_pred,"houseprice/sample_submission.csv")
+
+estimators.append(ela)
+lasso_alphas = [5e-5, 1e-4, 5e-4, 1e-3]
+las = LassoCV(max_iter=1e7, alphas=lasso_alphas,
+                              random_state=42, cv=kfolds).fit(train_X, train_y)
+# y_pred = inv_boxcox1p(las.predict(test_X),lam_l)
+# save_file("houseprice/submission_LassoCV.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(las)
+
+
+ridge_alphas = [13.5, 14, 14.5, 15, 15.5]
+rid = RidgeCV(alphas=ridge_alphas, cv=kfolds).fit(train_X, train_y)
+# y_pred = inv_boxcox1p(rid.predict(test_X),lam_l)
+# save_file("houseprice/submission_RidgeCV.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(rid)
+
+
+from sklearn.ensemble import GradientBoostingRegressor
+alpha = 0.95
+gbr = GradientBoostingRegressor(loss='quantile', alpha=alpha,
+                                n_estimators=250, max_depth=4,
+                                learning_rate=.1, min_samples_leaf=9,
+                                min_samples_split=9)
+
+gbr.fit(train_X, train_y)
+# Make the prediction on the meshed x-axis
+y_upper = gbr.predict(test_X)
+gbr.set_params(alpha=1.0 - alpha)
+gbr.fit(train_X, train_y)
+# Make the prediction on the meshed x-axis
+y_lower = gbr.predict(test_X)
+gbr.set_params(loss='ls')
+gbr.fit(train_X, train_y)
+# Make the prediction on the meshed x-axis
+# y_pred = inv_boxcox1p(gbr.predict(test_X),lam_l)
+# save_file("houseprice/submission_GradientBoosting.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(gbr)
+
+
+best_param = {'rsm': 0.5,
+ 'random_strength': 0.5,
+ 'n_estimators': 500,
+ 'min_child_samples': 5,
+ 'max_depth': 3,
+ 'learning_rate': 0.1,
+ 'l2_leaf_reg': 0.01}
+cb = CatBoostRegressor(**best_param).fit(train_X,train_y)
+# y_pred = inv_boxcox1p(cb.predict(test_X),lam_l)
+# save_file("houseprice/submission_catboost.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(cb)
+
+
+best_param = {'reg_lambda': 0.001,
+ 'reg_alpha': 0.001,
+ 'n_estimators': 500,
+ 'min_child_weight': 5,
+ 'max_depth': 3,
+ 'learning_rate': 0.1}
+xgb = XGBRegressor(**best_param).fit(train_X,train_y)
+# y_pred = inv_boxcox1p(xgb.predict(test_X),lam_l)
+# save_file("houseprice/submission_XGBRegressor.csv",idx,y_pred,"houseprice/sample_submission.csv")
+estimators.append(xgb)
+
+
+from sklearn.ensemble import HistGradientBoostingRegressor 
+hgrd= HistGradientBoostingRegressor(
+    loss= 'least_squares',
+    max_depth= 2,
+    min_samples_leaf= 40,
+    max_leaf_nodes= 29,
+    learning_rate= 0.15,
+    max_iter= 225,
+    random_state=42).fit(train_X,train_y)
+# y_pred = inv_boxcox1p(hgrd.predict(test_X),lam_l)
+# save_file("houseprice/submission_HistGradientBoostingRegressor.csv",idx,y_pred,"houseprice/sample_submission.csv")
 
 
 from mlxtend.regressor import StackingCVRegressor
-stackcv = StackingCVRegressor(regressors=(ela,las,rid,xgb_grid, clf, regr_2),
-                              meta_regressor=xgb_grid,
+stackcv = StackingCVRegressor(regressors=(ela,las,rid,xgb, clf, regr_2),
+                              meta_regressor=xgb,
                               use_features_in_secondary=True)
 stackcv.fit(np.array(train_X), np.array(train_y))
-y_pred = stackcv.predict(test_X)
-save_file("houseprice/submission_stackcv.csv",idx,y_pred,"houseprice/sample_submission.csv")
 
 
+from scipy.optimize import minimize
+predictions = []
+for est in estimators:
+    predictions.append(inv_boxcox1p(est.predict(train_X),lam_l))
+def mse_func(weights):
+    from sklearn.metrics import mean_squared_error
+    #scipy minimize will pass the weights as a numpy array
+    final_prediction = 0
+    for weight, prediction in zip(weights, predictions):
+            final_prediction += weight*prediction
+    #return np.mean((y_test-final_prediction)**2)
+    return np.sqrt(mean_squared_error(inv_boxcox1p(train_y,lam_l) , final_prediction))
+    
+starting_values = [0]*len(predictions)
+cons = ({'type':'ineq','fun':lambda w: 1-sum(w)})
+#our weights are bound between 0 and 1
+bounds = [(0,1)]*len(predictions)
+res = minimize(mse_func, starting_values, method='SLSQP', bounds=bounds, constraints=cons)
+
+print('Ensamble Score: {best_score}'.format(best_score=res['fun']))
+print('Best Weights: {weights}'.format(weights=res['x']))
+
+weights = res['x']
+predictions = []
+for est in estimators:
+    predictions.append(inv_boxcox1p(est.predict(test_X),lam_l))
+y_pred = sum([weight*prediction for weight, prediction in zip(weights, predictions)])
+save_file("houseprice/blend_model.csv",idx,y_pred,"houseprice/sample_submission.csv")
 
 
+raw_models = model_check(train_X, train_y, estimators, kfolds)
+pd.options.display.max_columns = 250
+pd.options.display.max_rows = 250
+pd.options.display(raw_models.style.background_gradient(cmap='summer_r'))
 
 
 from sklearn.ensemble import ExtraTreesClassifier
@@ -601,12 +693,64 @@ y_pred = rfc_model.predict(test_X)
 
 
 
-def blend_models_predict(X=X):
-    return ((0.1* elastic_model_full_data.predict(X)) + 
-            (0.1 * lasso_model_full_data.predict(X)) + 
-            (0.05 * ridge_model_full_data.predict(X)) + 
-            (0.1 * svr_model_full_data.predict(X)) + 
-            (0.1 * gbr_model_full_data.predict(X)) + 
-            (0.15 * xgb_model_full_data.predict(X)) + 
-            (0.1 * lgb_model_full_data.predict(X)) + 
-            (0.3 * stack_gen_model.predict(np.array(X))))
+import random as rn
+rn.seed(1) # random
+from numpy.random import seed
+seed(7) # or 7
+import tensorflow as tf
+tf.random.set_seed(0) # tf
+
+a='''
+from numpy.random import seed
+seed(1)
+seed = 7 # optimized
+np.random.seed(seed)
+import tensorflow as tf
+tf.random.set_seed(0) # tf
+'''
+from keras.optimizers import Adam, SGD, RMSprop   #for adam optimizer
+def baseline_model(dim=223, opt_sel="adam", learning_rate = 0.001, neurons = 1, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=False, decay = 0.0002, momentum=0.9):
+    def bm():
+        # create model
+        model = Sequential()
+        #model.add(Dense(neurons, input_dim=223, kernel_initializer='normal', activation='relu'))
+        model.add(Dense(neurons, input_dim=dim, kernel_initializer='normal', activation='relu'))
+        model.add(Dense(1, kernel_initializer='normal'))
+        #model.add(Dense(1, kernel_initializer='normal')) # added to v86
+        # Compile model
+        if (opt_sel == "adam"):
+            #opt = Adam(lr=learning_rate, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon, amsgrad=amsgrad) # added to v86
+            opt = Adam(lr=learning_rate)
+        elif(opt_sel == "sgd"):
+            opt = SGD(learning_rate=learning_rate, momentum=momentum, decay=decay, nesterov=True)
+        model.compile(loss='mean_squared_error', optimizer=opt)
+        return model
+    return bm
+
+n_cols = train_inputs.shape[1]
+input_shape = (n_cols, )
+# Creates a model given an activation and learning rate
+# Create the model object with default arguments
+def create_model(learning_rate = 0.001, activation='relu'):
+  
+    # Set Adam optimizer with the given learning rate
+    opt = Adam(lr = learning_rate)
+  
+    # Create your binary classification model  
+    model = Sequential()
+    model.add(Dense(128,
+                    activation = activation,
+                    input_shape = input_shape,
+                    activity_regularizer = regularizers.l2(1e-5)))
+    model.add(Dropout(0.50))
+    model.add(Dense(128,
+                    activation = activation, 
+                    activity_regularizer = regularizers.l2(1e-5)))
+    model.add(Dropout(0.50))
+    model.add(Dense(1, activation = activation))
+    # Compile the model
+    model.compile(optimizer = opt,
+                  #loss = "mean_absolute_error",
+                  loss = "mean_squared_error",
+                  metrics = ['mse', "mape"])
+    return model

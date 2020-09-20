@@ -5,6 +5,8 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.tree import DecisionTreeClassifier
 
 import numpy as np
+import pandas as pd
+from sklearn.model_selection import cross_validate
 
 def Logistic(train_X, train_y,test_X):
     clf = LogisticRegression()
@@ -181,3 +183,39 @@ def lightgbm_lib(train_X, train_y,test_X):
     params['max_depth'] = 10
     clf = lgb.train(params, d_train, 100)
     return clf.predict(test_X)
+
+def model_check(X, y, estimators, cv):
+
+    
+    ''' A function for testing multiple estimators.'''
+    
+    model_table = pd.DataFrame()
+
+    row_index = 0
+    for est in estimators:
+        label = est.__class__.__name__
+        MLA_name = label
+        model_table.loc[row_index, 'Model Name'] = MLA_name
+
+        cv_results = cross_validate(est,
+                                    X,
+                                    y,
+                                    cv=cv,
+                                    scoring='neg_root_mean_squared_error',
+                                    return_train_score=True,
+                                    n_jobs=-1)
+
+        model_table.loc[row_index, 'Train RMSE'] = -cv_results[
+            'train_score'].mean()
+        model_table.loc[row_index, 'Test RMSE'] = -cv_results[
+            'test_score'].mean()
+        model_table.loc[row_index, 'Test Std'] = cv_results['test_score'].std()
+        model_table.loc[row_index, 'Time'] = cv_results['fit_time'].mean()
+
+        row_index += 1
+
+    model_table.sort_values(by=['Test RMSE'],
+                            ascending=True,
+                            inplace=True)
+
+    return model_table
