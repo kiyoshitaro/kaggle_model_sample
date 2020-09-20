@@ -2,7 +2,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
 from matplotlib import pyplot as plt
-
+import seaborn as sns
+from matplotlib.ticker import MaxNLocator
 
 def describe_data(train_df):
     print("Size : ",train_df.shape)
@@ -75,12 +76,74 @@ def assessment(f_data, f_y_feature, f_x_feature, f_index=-1):
         f_chart2 = plt.xlabel(f_x_feature, fontsize=10)
         f_chart2 = plt.ylabel(f_y_feature, fontsize=10)
     else:
-        f_chart2 = sns.scatterplot(x=f_x_feature, y=f_y_feature, data=f_data, hue=f_hue, legend=False)
+
+        f_chart2 = sns.regplot(x=f_x_feature,
+                    y=f_y_feature,
+                    data=f_data,
+                    order=3,
+                    ci=None,
+                    color='#e74c3c',
+                    line_kws={'color': 'black'},
+                    scatter_kws={'alpha':0.4})
+
+
+        # f_chart2 = sns.scatterplot(x=f_x_feature, y=f_y_feature, data=f_data, hue=f_hue, legend=False)
         f_chart2.set_xlabel(f_x_feature,fontsize=10)
         f_chart2.set_ylabel(f_y_feature,fontsize=10)
 
     plt.show()
 
+
+
+def correlation_map(f_data, f_feature, f_number):
+    # distribute and scatter plots for target versus numerical attributes
+    from matplotlib import pyplot as plt
+    """
+    Develops and displays a heatmap plot referenced to a primary feature of a dataframe, highlighting
+    the correlation among the 'n' mostly correlated features of the dataframe.
+    
+    Keyword arguments:
+    
+    f_data      Tensor containing all relevant features, including the primary.
+                Pandas dataframe
+    f_feature   The primary feature.
+                String
+    f_number    The number of features most correlated to the primary feature.
+                Integer
+    """
+    f_most_correlated = f_data.corr().nlargest(f_number,f_feature)[f_feature].index
+    f_correlation = f_data[f_most_correlated].corr()
+    
+    f_mask = np.zeros_like(f_correlation)
+    f_mask[np.triu_indices_from(f_mask)] = True
+    with sns.axes_style("white"):
+        f_fig, f_ax = plt.subplots(figsize=(12, 10))
+        f_ax = sns.heatmap(f_correlation, mask=f_mask, vmin=0, vmax=1, square=True,
+                           annot=True, annot_kws={"size": 10}, cmap="BuPu")
+
+    plt.show()
+
+
+def srt_box(y, df):
+    
+    '''A function for displaying categorical variables.'''
+    
+    fig, axes = plt.subplots(14, 3, figsize=(25, 80))
+    axes = axes.flatten()
+
+    for i, j in zip(df.select_dtypes(include=['object']).columns, axes):
+
+        sortd = df.groupby([i])[y].median().sort_values(ascending=False)
+        sns.boxplot(x=i,
+                    y=y,
+                    data=df,
+                    palette='plasma',
+                    order=sortd.index,
+                    ax=j)
+        j.tick_params(labelrotation=45)
+        j.yaxis.set_major_locator(MaxNLocator(nbins=18))
+
+        plt.tight_layout()
 
 def save_file(file ,id , y_pred, sample):
     cols = pd.read_csv(sample).columns

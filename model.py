@@ -105,10 +105,67 @@ def GradientBoostingRegEarlyStop(train_X, train_y,test_X):
     gbrt_best.fit(X_train, y_train)
     return gbrt_best.predict(test_X)
 
+def SVM(train_X, train_y,test_X):
+    from sklearn import svm
+    svm_model=svm.SVC()
+    svm_model.fit(train_X, train_y)
+    return svm_model.predict(test_X)
+
+def NaiBay(train_X, train_y,test_X):
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn.naive_bayes import MultinomialNB
+    gnb=GaussianNB()
+    mnb=MultinomialNB()
+    gnb.fit(train_X, train_y)
+    mnb.fit(train_X, train_y)
+    return gnb.predict(test_X)
+
 def DecisionTree(train_X, train_y,test_X):
     tree_model = DecisionTreeClassifier(random_state=0, max_depth=5, min_samples_split=5).fit(train_X, train_y)
     return tree_model.predict_proba(test_X)[:, 1]
 
+
+def Catboost(train_X, train_y,test_X):
+    from catboost import CatBoostRegressor
+    from sklearn.model_selection import RandomizedSearchCV
+    cb = CatBoostRegressor(loss_function='RMSE', logging_level='Silent')
+    # param_lst = {
+    #     'n_estimators' : [100, 300, 500],
+    #     'learning_rate' : [0.0001, 0.001, 0.01, 0.1],
+    #     'l2_leaf_reg' : [0.001, 0.01, 0.1],
+    #     'random_strength' : [0.25, 0.5 ,1],
+    #     'max_depth' : [3, 6, 9],
+    #     'min_child_samples' : [2, 5, 10, 15, 20],
+    #     'rsm' : [0.5, 0.7, 0.9],
+        
+    # }
+    param_lst = {
+        'n_estimators' : [500],
+        'learning_rate' : [0.001, 0.01, 0.1],
+        'l2_leaf_reg' : [0.001, 0.01, 0.1],
+        'random_strength' : [0.25, 0.5 ,1],
+        'max_depth' : [3, 6, 9],
+        'min_child_samples' : [2, 5, 10],
+        'rsm' : [0.5, 0.7, 0.9],
+        
+    }
+
+
+
+    catboost = RandomizedSearchCV(estimator = cb, param_distributions = param_lst,
+                                n_iter = 100, scoring = 'neg_root_mean_squared_error',
+                                cv = 5)
+
+
+    # CatBoost with tuned hyperparams
+    catboost_search = catboost.fit(train_X,
+            train_y)
+    best_param = catboost_search.best_params_
+    cb = CatBoostRegressor(**best_param)
+
+    cb.fit(train_X,
+            train_y)
+    return cb.predict(test_X)
 
 def lightgbm_lib(train_X, train_y,test_X):
     import lightgbm as lgb
