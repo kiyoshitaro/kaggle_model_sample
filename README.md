@@ -1,33 +1,54 @@
 
 ## Step
-- Đọc data -> gộp dữ liệu train và test,
+
+### Preprocess 
+- Load data -> combine train and test
+
+- Drop missing-data feature
+
+- Drop predominant feature
 
 - Phân loại feature -> categorical & numerical
 
-- Feature engineer :
 
-	- categorical: encode cho ordinal và nominal feature , tạo feature mới
+### Clean and creative
+- Categorical_feature: 
+	- Feature visualize
+	- Feature engineer:
+		- Encode by hand ordinal feature
+		- Use pd.get_dummies to onehot-encode nominal feature
 
-		- ordinal: 'ExterQual', 'ExterCond', 'BsmtQual','BsmtCond', 'HeatingQC','KitchenQual', 'FireplaceQu', 'GarageQual', 'GarageCond','BsmtExposure', 'BsmtFinType1', 'BsmtFinType2','CentralAir','Functional'
 
-	-	Sử dụng pd.get_dummies để encode nominal feature
+- Numerical Feature:
+	- Impute: Use sklearn.impute:  KNNImputer, SimpleImputer,...
+	- Visualize feature vs output
+	- Visualize relation correlation between features
+	- Feature selection: 
+		- Consider high-coorrelate features, remove one of them
+		- Remove feature that low-coorrelate with output
+		- Outlier: Visualize in boxplot and remove with threshold or sklearn.neighbors: LocalOutlierFactor
+	- Feature engineer: 
+		- Use feature with high coorelate with output to create new feature: log, exp , ...
+		- Transform datetime feature to float
 
+- Regularization:
+	- Normalize data with sklearn.preprocessing: StandardScaler,RobustScaler, MinMaxScaler . Fit the scaler just on training data, and then transforming it on both training and test data
+	- Skew (linear) models love normally distributed data , we need to transform this variable and make it more normally distributed. Using scipy.special: boxcox1p, inv_boxcox, inv_boxcox1p, ... 
 
-	- numerical:
+### Modeling & evaluate
 
-- Tạo feature mới:
+- Model:
+	- Linear model from  sklearn.linear_model : ElasticNetCV, LassoCV, RidgeCV, ...
 
-	- YearsSinceBuilt = YrSold - YearBuilt : Thời gian từ khi được xây dựng đến lúc bán
+	- Use ensemble learing from sklearn.ensemble: AdaBoostRegressor, RandomForestClassifier, RandomForestRegressor, GradientBoostingRegressor , HistGradientBoostingRegressor, ...
 
-	- YearsSinceRemod = YrSold - YearRemodAdd: Thời gian từ khi được tu sửa đến lúc bán
+	- CatBoostRegressor, XGBRegressor, LGBMRegressor
 
-  
-  
+	- Deealearnig model with Keras Sequential
 
-- Remove các feature nhiều nhiễu
+- Validate and blending model:
 
-- Impute data
-- Data outlier
-- Scale data -> standard
-- Visualize distributed
-- Đưa train data vào các mô hình : RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor, … và predict test data
+	- Use model_check in model.py to evaluate model in val_data 
+
+	- Build a normal linear model and fit in train_data to blend all model 
+

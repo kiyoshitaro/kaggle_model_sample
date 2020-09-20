@@ -7,6 +7,11 @@ from utils import save_file,describe_data, assessment, correlation_map,srt_box
 from model import model_check
 from matplotlib import pyplot as plt
 import seaborn as sns 
+from sklearn.model_selection import RandomizedSearchCV
+from catboost import CatBoostRegressor
+from xgboost.sklearn import XGBRegressor
+
+
 
 train_df = pd.read_csv('houseprice/train.csv')
 y = train_df.SalePrice
@@ -327,6 +332,7 @@ plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigm
             loc='best')
 plt.ylabel('Frequency')
 plt.title('SalePrice distribution')
+
 # The target variable is right skewed. As (linear) models love 
 # normally distributed data , we need to transform this variable 
 # and make it more normally distributed
@@ -369,132 +375,6 @@ val_X = sc.transform(val_X)
 # train_X = rs.fit_transform(train_X)
 # test_X = rs.transform(test_df)
 # val_X = rs.transform(val_X)
-
-
-
-from sklearn.model_selection import RandomizedSearchCV
-from xgboost.sklearn import XGBRegressor
-
-xgb = XGBRegressor(booster='gbtree', objective='reg:squarederror')
-# xgb = XGBRegressor(booster='gbtree', objective='reg:squarederror', colsample_bynode= 0.8,num_parallel_tree = 100,tree_method = 'gpu_hist')
-
-param_lst = {
-    'learning_rate' : [0.01, 0.1, 0.15],
-    'n_estimators' : [100, 500],
-    'max_depth' : [3, 6, 9],
-    'min_child_weight' : [1, 5, 10],
-    'reg_alpha' : [0.001, 0.01, 0.1],
-    'reg_lambda' : [0.001, 0.01, 0.1],
-}
-
-xgb_reg = RandomizedSearchCV(estimator = xgb, param_distributions = param_lst,
-                              n_iter = 100, scoring = 'neg_root_mean_squared_error',
-                              cv = 5)
-       
-xgb_random = xgb_reg.fit(train_X,
-         train_y)
-
-# XGB with tune hyperparameters
-best_param = xgb_random.best_params_
-xgb = XGBRegressor(**best_param)
-xgb.fit(train_X,
-         train_y)
-
-y_pred = xgb.predict(test_X)
-save_file("houseprice/submission_XGBRegressor_random.csv",idx,y_pred,"houseprice/sample_submission.csv")
-# import pickle
-# with open("models/XGBRegressor.pkl", 'wb') as file:
-#     pickle.dump(xgb, file)
-# with open("models/XGBRegressor.pkl", 'rb') as file:
-#     pickle_model = pickle.load(file)
-
-
-
-
-
-# Faster training speed and higher efficiency (use histogram based algorithm i.e it buckets continuous feature values into discrete bins which fasten the training procedure)
-# Lower memory usage (Replaces continuous values to discrete bins which result in lower memory usage)
-# Better accuracy
-# Support of parallel and GPU learning
-# Capable of handling large-scale data (capable of performing equally good with large datasets with a significant reduction in training time as compared to XGBOOST)
-from lightgbm import LGBMRegressor
-lgbm = LGBMRegressor(boosting_type='gbdt',objective='regression', max_depth=-1,
-                    lambda_l1=0.0001, lambda_l2=0, learning_rate=0.1,
-                    n_estimators=100, max_bin=200, min_child_samples=20, 
-                    bagging_fraction=0.75, bagging_freq=5,
-                    bagging_seed=7, feature_fraction=0.8,
-                    feature_fraction_seed=7, verbose=-1)
-param_lst = {
-    'max_depth' : [2, 5, 8],
-    'learning_rate' : [0.001, 0.01, 0.1],
-    'n_estimators' : [300, 500],
-    'lambda_l1' : [0.0001, 0.001, 0.01],
-    'lambda_l2' : [0, 0.0001, 0.001, 0.01],
-    'feature_fraction' : [0.4, 0.6, 0.8],
-    'min_child_samples' : [5, 10, 20]
-}
-
-lightgbm = RandomizedSearchCV(estimator = lgbm, param_distributions = param_lst,
-                              n_iter = 100, scoring = 'neg_root_mean_squared_error',
-                              cv = 5)
-       
-lightgbm_search = lightgbm.fit(train_X,
-         train_y)
-
-# LightBGM with tuned hyperparameters
-best_param = lightgbm_search.best_params_
-lgbm = LGBMRegressor(**best_param)
-lgbm.fit(train_X,
-         train_y)
-y_pred = lgbm.predict(test_X)
-save_file("houseprice/submission_lgbm_random.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
-
-
-
-
-# Catboost itself can deal with categorical features which usually has to be converted to numerical encodings 
-# in order to feed into traditional gradient boost frameworks and machine learning models.
-# The 2 critical features in Catboost algorithm is the use of ordered boosting and 
-# innovative algorithm for processing categorical features, 
-# which fight the prediction shift caused by a special kind of target leakage present 
-# in all existing implementations of gradient boosting algorithms
-from catboost import CatBoostRegressor
-cb = CatBoostRegressor(loss_function='RMSE', logging_level='Silent')
-# param_lst = {
-#     'n_estimators' : [100, 300, 500],
-#     'learning_rate' : [0.0001, 0.001, 0.01, 0.1],
-#     'l2_leaf_reg' : [0.001, 0.01, 0.1],
-#     'random_strength' : [0.25, 0.5 ,1],
-#     'max_depth' : [3, 6, 9],
-#     'min_child_samples' : [2, 5, 10, 15, 20],
-#     'rsm' : [0.5, 0.7, 0.9],
-    
-# }
-param_lst = {
-    'n_estimators' : [500],
-    'learning_rate' : [0.001, 0.01, 0.1],
-    'l2_leaf_reg' : [0.001, 0.01, 0.1],
-    'random_strength' : [0.25, 0.5 ,1],
-    'max_depth' : [3, 6, 9],
-    'min_child_samples' : [2, 5, 10],
-    'rsm' : [0.5, 0.7, 0.9],
-    
-}
-catboost = RandomizedSearchCV(estimator = cb, param_distributions = param_lst,
-                              n_iter = 100, scoring = 'neg_root_mean_squared_error',
-                              cv = 5)
-# CatBoost with tuned hyperparams
-catboost_search = catboost.fit(train_X,
-         train_y)
-best_param = catboost_search.best_params_
-cb = CatBoostRegressor(**best_param)
-
-cb.fit(train_X,
-         train_y)
-y_pred = cb.predict(test_X)
-save_file("houseprice/submission_catboost_random.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
 
 
 
@@ -647,10 +527,16 @@ y_pred = sum([weight*prediction for weight, prediction in zip(weights, predictio
 save_file("houseprice/blend_model.csv",idx,y_pred,"houseprice/sample_submission.csv")
 
 
+
+
+# VALIDATE ALL MODEL
 raw_models = model_check(train_X, train_y, estimators, kfolds)
 pd.options.display.max_columns = 250
 pd.options.display.max_rows = 250
 pd.options.display(raw_models.style.background_gradient(cmap='summer_r'))
+
+
+
 
 
 from sklearn.ensemble import ExtraTreesClassifier
