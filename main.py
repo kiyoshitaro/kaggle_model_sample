@@ -1,3 +1,4 @@
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -380,7 +381,7 @@ val_X = sc.transform(val_X)
 
 estimators = []
 from sklearn import svm
-svm_model=svm.SVC().fit(train_X, train_y)
+svm_model=svm.SVC(kernel='rbf').fit(train_X, train_y)
 # y_pred = inv_boxcox1p(svm_model.predict(test_X),lam_l)
 # save_file("houseprice/submission_svm.csv",idx,y_pred,"houseprice/sample_submission.csv")
 estimators.append(svm_model)
@@ -413,9 +414,11 @@ ela = ElasticNetCV(max_iter=1e7, alphas=elasticnet_alphas,
                                         cv=kfolds, l1_ratio=elasticnet_l1ratios).fit(train_X, train_y)
 # y_pred = inv_boxcox1p(ela.predict(test_X),lam_l)
 # save_file("houseprice/submission_Elastic.csv",idx,y_pred,"houseprice/sample_submission.csv")
-
 estimators.append(ela)
+
+
 lasso_alphas = [5e-5, 1e-4, 5e-4, 1e-3]
+"""This model may be very sensitive to outliers. So we need to made it more robust on them"""
 las = LassoCV(max_iter=1e7, alphas=lasso_alphas,
                               random_state=42, cv=kfolds).fit(train_X, train_y)
 # y_pred = inv_boxcox1p(las.predict(test_X),lam_l)
@@ -579,21 +582,15 @@ y_pred = rfc_model.predict(test_X)
 
 
 
-import random as rn
-rn.seed(1) # random
-from numpy.random import seed
-seed(7) # or 7
-import tensorflow as tf
-tf.random.set_seed(0) # tf
 
-a='''
-from numpy.random import seed
-seed(1)
-seed = 7 # optimized
-np.random.seed(seed)
-import tensorflow as tf
-tf.random.set_seed(0) # tf
-'''
+import keras
+import math
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import Dropout
+from keras.callbacks import LearningRateScheduler, EarlyStopping
+from keras.layers import Conv1D, BatchNormalization, MaxPool1D, Flatten, Activation
+from keras.wrappers.scikit_learn import KerasRegressor
 from keras.optimizers import Adam, SGD, RMSprop   #for adam optimizer
 def baseline_model(dim=223, opt_sel="adam", learning_rate = 0.001, neurons = 1, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=False, decay = 0.0002, momentum=0.9):
     def bm():
@@ -612,31 +609,22 @@ def baseline_model(dim=223, opt_sel="adam", learning_rate = 0.001, neurons = 1, 
         model.compile(loss='mean_squared_error', optimizer=opt)
         return model
     return bm
+def step_decay(epoch, lr):
+    drop = 0.995 # was .999
+    epochs_drop = 175.0 # was 175, sgd likes 200+, adam likes 100
+    lrate = lr * math.pow(drop, math.floor((1+epoch)/epochs_drop))
+    print("epoch=" + str(epoch) + " lr=" + str(lr) + " lrate=" + str(lrate))
+    return lrate
 
-n_cols = train_inputs.shape[1]
-input_shape = (n_cols, )
-# Creates a model given an activation and learning rate
-# Create the model object with default arguments
-def create_model(learning_rate = 0.001, activation='relu'):
-  
-    # Set Adam optimizer with the given learning rate
-    opt = Adam(lr = learning_rate)
-  
-    # Create your binary classification model  
-    model = Sequential()
-    model.add(Dense(128,
-                    activation = activation,
-                    input_shape = input_shape,
-                    activity_regularizer = regularizers.l2(1e-5)))
-    model.add(Dropout(0.50))
-    model.add(Dense(128,
-                    activation = activation, 
-                    activity_regularizer = regularizers.l2(1e-5)))
-    model.add(Dropout(0.50))
-    model.add(Dense(1, activation = activation))
-    # Compile the model
-    model.compile(optimizer = opt,
-                  #loss = "mean_absolute_error",
-                  loss = "mean_squared_error",
-                  metrics = ['mse', "mape"])
-    return model
+lrate = LearningRateScheduler(step_decay)
+early_stopping = EarlyStopping(monitor='val_loss', patience=50, mode='auto', restore_best_weights = True)
+callbacks_list = [lrate, early_stopping] 
+num_epochs = 100
+keras_optimizer = "adam"
+
+# dnn = KerasRegressor(build_fn=baseline_model(dim=223, opt_sel=keras_optimizer, learning_rate = 0.005, neurons = 8, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=False), epochs=num_epochs, batch_size=1, verbose=1)
+# dnn = KerasRegressor(build_fn=baseline_model(dim=223, opt_sel=keras_optimizer, learning_rate=0.000005, neurons=32, decay=0.000001, momentum=0.9), epochs=num_epochs, batch_size=8, verbose=1)
+dnn = KerasRegressor(build_fn=baseline_model(dim=5, opt_sel="adam", learning_rate = 0.001, neurons = 8, beta_1=0.9, beta_2=0.999, epsilon=1e-07, amsgrad=False), epochs=num_epochs, batch_size=2, verbose=1)
+dnn.fit(train_X, train_y, shuffle=True, validation_data=(val_X, val_y), callbacks=callbacks_list) # added to v86
+dnn_train_pred = inv_boxcox1p(dnn.predict(train_X), lam_l)
+dnn_pred = inv_boxcox1p(dnn.predict(test_X), lam_l)

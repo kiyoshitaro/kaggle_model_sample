@@ -8,11 +8,11 @@
 
 - Drop predominant feature
 
-- Phân loại feature -> categorical & numerical
+- Classify feature -> categorical & numerical
 
 
 ### Clean and creative
-- Categorical_feature: 
+- Categorical Feature: 
 	- Feature visualize
 	- Feature engineer:
 		- Encode by hand ordinal feature
